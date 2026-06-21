@@ -1,82 +1,60 @@
 # Weekly meal planner
 
-A self-contained vegetarian Indian/continental meal planner for a family of 3
-adults + an 11-month-old baby. No backend, no database — everything runs in
-the browser. Installable as a PWA (add to home screen) on any phone.
+A weekly vegetarian meal planner built for a household of 3 adults and an
+11-month-old baby. Open it Friday morning to see the week ahead, Saturday
+to Friday.
 
-## Run it locally
+**What it does:**
+- Plans breakfast, lunch, and dinner for all 7 days, mixing Indian (~80%)
+  and continental (~20%) meals
+- Includes a baby-friendly version of every meal — softened, lightly
+  salted, low spice
+- Flags a no-yogurt swap (protein shake or smoothie) on any meal built
+  around curd
+- Features idli/dosa batter 3–4 times a week for dinner
+- No eggs, no mushroom, anywhere
+- Every dish cooks in under an hour
+- Builds a grocery list automatically, grouped into vegetables, dairy,
+  and pantry, with tap-to-check-off
+- Regenerate the whole week, or just one day, with one tap
+
+No sign-up, no account, no data leaves your phone — everything runs
+locally in the browser.
+
+---
+
+## For developers
+
+The rest of this is about running, deploying, and editing the app.
+
+### Run it locally
 
 ```bash
 npm install
 npm run dev
 ```
 
-Open the printed `localhost` URL on your computer, or on your phone if it's
-on the same wifi network (use your computer's local IP instead of
-`localhost`, e.g. `http://192.168.1.23:5173`).
+### Deploy it free
 
-## Put it on your own GitHub
+Push to GitHub, then connect the repo at [vercel.com](https://vercel.com)
+or [netlify.com](https://netlify.com) — both auto-detect Vite, no config
+needed, and redeploy on every push. GitHub Pages also works; see
+`vite.config.js` if using that route (set `base` to your repo name).
 
-```bash
-git init
-git add .
-git commit -m "Initial commit: weekly meal planner"
-git branch -M main
-git remote add origin https://github.com/<your-username>/<your-repo>.git
-git push -u origin main
-```
+### Install on a phone like a native app
 
-(Create the empty repo on GitHub first at github.com/new — don't initialize
-it with a README there, since this folder already has one.)
+Once deployed, open the live URL and use "Add to Home Screen" (iOS Safari)
+or "Install app" (Android Chrome). The manifest and service worker in this
+project make it launch full-screen with its own icon — no app store needed.
 
-## Deploy it live, free, in ~2 minutes
-
-Any of these work great for a static React app like this one. All three
-detect Vite automatically — you don't need to configure anything.
-
-### Option 1: Vercel (recommended, easiest)
-1. Go to vercel.com → sign in with GitHub
-2. "Add new project" → pick this repo
-3. Leave all defaults (it auto-detects Vite) → Deploy
-4. You get a live URL like `your-app.vercel.app` instantly
-5. Every future `git push` auto-redeploys
-
-### Option 2: Netlify
-1. Go to netlify.com → "Add new site" → "Import an existing project"
-2. Connect GitHub, pick this repo
-3. Build command: `npm run build`, publish directory: `dist`
-4. Deploy → you get a URL like `your-app.netlify.app`
-
-### Option 3: GitHub Pages (free, tied directly to your GitHub repo)
-1. `npm install -D gh-pages` (add to devDependencies)
-2. Add to `package.json` scripts: `"deploy": "npm run build && npx gh-pages -d dist"`
-3. In `vite.config.js`, set `base: "/<your-repo-name>/"` instead of `"./"`
-4. Run `npm run deploy`
-5. In your repo's Settings → Pages, set source to the `gh-pages` branch
-6. Live at `https://<your-username>.github.io/<your-repo-name>/`
-
-## Installing it on your phone like an app
-
-Once deployed to any URL above:
-- **Android (Chrome):** open the URL → menu (⋮) → "Add to Home screen" / "Install app"
-- **iPhone (Safari):** open the URL → Share button → "Add to Home Screen"
-
-It will then open full-screen with its own icon, exactly like a native app,
-using the manifest and service worker already included in this project — no
-Play Store, no app review, no APK needed.
-
-## Project structure
+### Project structure
 
 ```
-index.html              entry HTML, PWA meta tags
-public/manifest.webmanifest   PWA install config
-public/sw.js             offline caching service worker
-public/icons/            app icons (192px, 512px)
-src/main.jsx             mounts the React app
-src/MealPlanner.jsx       the entire app: data, generator, UI
+src/MealPlanner.jsx     all app logic: dish/vegetable data, the
+                        generator, grocery list builder, and UI
+src/main.jsx            mounts the app
+public/manifest.webmanifest, public/sw.js, public/icons/   PWA setup
 ```
 
-All app logic — the vegetable/dish pools, rotation generator, grocery list
-builder, and UI — lives in `src/MealPlanner.jsx`. Edit the `DISHES` and
-`VEGETABLES` constants near the top of that file to add more meals or
-ingredients.
+To add or change meals, edit the `DISHES` and `VEGETABLES` constants near
+the top of `src/MealPlanner.jsx`.
