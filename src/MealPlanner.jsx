@@ -2,8 +2,8 @@ import React, { useState, useEffect } from "react";
 
 /* ---------------------------------------------------------------------
    DATA LAYER — vegetable pool + dish pool with tags.
-   This is intentionally large and structured so the generator can do
-   real rotation logic instead of picking from one fixed pre-made list.
+   Large and structured so the generator can do real rotation logic
+   instead of picking from one fixed pre-made list.
 --------------------------------------------------------------------- */
 
 const VEGETABLES = [
@@ -55,6 +55,9 @@ const PANTRY_STAPLES = [
   { id: "chickpeas", name: "Chickpeas (chana)", cat: "pantry" },
   { id: "rajma", name: "Kidney beans (rajma)", cat: "pantry" },
   { id: "peanuts", name: "Peanuts", cat: "pantry" },
+  { id: "idli_dosa_batter", name: "Idli / dosa batter", cat: "pantry" },
+  { id: "protein_powder", name: "Protein powder", cat: "pantry" },
+  { id: "banana", name: "Banana", cat: "pantry" },
 ];
 
 const DAIRY = [
@@ -68,68 +71,107 @@ const DAIRY = [
 
 /* ---------------------------------------------------------------------
    DISH POOL
-   Each dish: id, name, slot (breakfast/lunch/dinner), cuisine (indian/
-   continental), vegIds used, timeMins, pantryIds, dairyIds, babyNote.
+   Each dish: id, name, slot, cuisine (indian/continental), style tag
+   (used for day-pattern logic), vegIds, timeMins, pantryIds, dairyIds.
+   `usesYogurt: true` marks dishes where yogurt is a primary component —
+   these get a swap-friendly alternative shown alongside.
    No eggs, no mushroom anywhere in this pool.
+   Minimums met: 15+ breakfasts, 20+ lunches, 10+ dinners.
 --------------------------------------------------------------------- */
 
 const DISHES = {
   breakfast: [
-    { id: "poha", name: "Vegetable poha", cuisine: "indian", veg: ["onion", "peas", "carrot"], pantry: ["poha", "peanuts"], dairy: [], time: 25 },
-    { id: "upma", name: "Vegetable upma", cuisine: "indian", veg: ["onion", "carrot", "peas"], pantry: ["suji"], dairy: [], time: 25 },
-    { id: "idli_sambar", name: "Idli with sambar", cuisine: "indian", veg: ["onion", "tomato", "okra"], pantry: ["toor_dal", "rice"], dairy: [], time: 40 },
-    { id: "paneer_paratha", name: "Paneer stuffed paratha", cuisine: "indian", veg: ["onion"], pantry: ["atta"], dairy: ["paneer", "yogurt"], time: 35 },
-    { id: "aloo_paratha", name: "Aloo paratha", cuisine: "indian", veg: ["potato", "onion"], pantry: ["atta"], dairy: ["yogurt", "butter"], time: 35 },
-    { id: "besan_chilla", name: "Besan chilla", cuisine: "indian", veg: ["onion", "tomato", "spinach"], pantry: ["besan"], dairy: [], time: 20 },
-    { id: "veg_dalia", name: "Vegetable dalia (broken wheat)", cuisine: "indian", veg: ["carrot", "peas", "beetroot"], pantry: ["suji"], dairy: ["ghee"], time: 30 },
-    { id: "oats_porridge", name: "Savoury vegetable oats", cuisine: "continental", veg: ["carrot", "bell_pepper", "peas"], pantry: ["oats"], dairy: ["milk"], time: 15 },
-    { id: "veg_sandwich", name: "Grilled vegetable sandwich", cuisine: "continental", veg: ["tomato", "cabbage", "capsicum_red"], pantry: ["bread"], dairy: ["butter", "cheese"], time: 20 },
-    { id: "pancakes", name: "Whole wheat pancakes", cuisine: "continental", veg: [], pantry: ["atta"], dairy: ["milk", "butter"], time: 25 },
-    { id: "veg_uttapam", name: "Vegetable uttapam", cuisine: "indian", veg: ["onion", "tomato", "capsicum_red"], pantry: ["rice", "chana_dal"], dairy: [], time: 35 },
-    { id: "muesli_bowl", name: "Yogurt and fruit muesli bowl", cuisine: "continental", veg: [], pantry: ["oats"], dairy: ["yogurt", "milk"], time: 10 },
-    { id: "spinach_corn_toast", name: "Spinach and corn toast", cuisine: "continental", veg: ["spinach", "corn"], pantry: ["bread"], dairy: ["butter", "cheese"], time: 20 },
-    { id: "moong_dosa", name: "Moong dal dosa", cuisine: "indian", veg: ["onion", "ginger"], pantry: ["moong_dal", "rice"], dairy: [], time: 30 },
-    { id: "vermicelli_upma", name: "Vegetable vermicelli upma", cuisine: "indian", veg: ["carrot", "peas", "onion"], pantry: ["suji"], dairy: ["ghee"], time: 20 },
+    { id: "idli_sambar", name: "Idli with sambar", cuisine: "indian", style: "batter", veg: ["onion", "tomato", "okra"], pantry: ["idli_dosa_batter", "toor_dal"], dairy: [], time: 25 },
+    { id: "plain_dosa_chutney", name: "Plain dosa with chutney", cuisine: "indian", style: "batter", veg: ["onion"], pantry: ["idli_dosa_batter"], dairy: [], time: 20 },
+    { id: "veg_sandwich", name: "Grilled vegetable sandwich", cuisine: "continental", style: "sandwich", veg: ["tomato", "cabbage", "capsicum_red"], pantry: ["bread"], dairy: ["butter", "cheese"], time: 20 },
+    { id: "paneer_sandwich", name: "Paneer and tomato sandwich", cuisine: "continental", style: "sandwich", veg: ["tomato", "onion"], pantry: ["bread"], dairy: ["paneer", "butter"], time: 20 },
+    { id: "spinach_corn_toast", name: "Spinach and corn toast", cuisine: "continental", style: "sandwich", veg: ["spinach", "corn"], pantry: ["bread"], dairy: ["butter", "cheese"], time: 20 },
+    { id: "ganji_rice_porridge", name: "Rice ganji (rice porridge)", cuisine: "indian", style: "porridge", veg: [], pantry: ["rice"], dairy: ["milk"], time: 30, usesYogurt: false },
+    { id: "ragi_smoothie", name: "Ragi and banana smoothie", cuisine: "indian", style: "smoothie", veg: [], pantry: ["banana", "protein_powder"], dairy: ["milk"], time: 10, usesYogurt: false },
+    { id: "fruit_yogurt_smoothie", name: "Fruit and yogurt smoothie", cuisine: "continental", style: "smoothie", veg: [], pantry: ["banana"], dairy: ["yogurt"], time: 10, usesYogurt: true },
+    { id: "poha", name: "Vegetable poha", cuisine: "indian", style: "tiffin", veg: ["onion", "peas", "carrot"], pantry: ["poha", "peanuts"], dairy: [], time: 25 },
+    { id: "upma", name: "Vegetable upma", cuisine: "indian", style: "tiffin", veg: ["onion", "carrot", "peas"], pantry: ["suji"], dairy: [], time: 25 },
+    { id: "vermicelli_upma", name: "Vegetable vermicelli upma", cuisine: "indian", style: "tiffin", veg: ["carrot", "peas", "onion"], pantry: ["suji"], dairy: ["ghee"], time: 20 },
+    { id: "aloo_paratha", name: "Aloo paratha", cuisine: "indian", style: "paratha", veg: ["potato", "onion"], pantry: ["atta"], dairy: ["yogurt", "butter"], time: 35, usesYogurt: true },
+    { id: "paneer_paratha", name: "Paneer stuffed paratha", cuisine: "indian", style: "paratha", veg: ["onion"], pantry: ["atta"], dairy: ["paneer", "yogurt"], time: 35, usesYogurt: true },
+    { id: "besan_chilla", name: "Besan chilla", cuisine: "indian", style: "tiffin", veg: ["onion", "tomato", "spinach"], pantry: ["besan"], dairy: [], time: 20 },
+    { id: "veg_dalia", name: "Vegetable dalia (broken wheat)", cuisine: "indian", style: "porridge", veg: ["carrot", "peas", "beetroot"], pantry: ["suji"], dairy: ["ghee"], time: 30 },
+    { id: "oats_porridge", name: "Savoury vegetable oats", cuisine: "continental", style: "porridge", veg: ["carrot", "bell_pepper", "peas"], pantry: ["oats"], dairy: ["milk"], time: 15 },
+    { id: "pancakes", name: "Whole wheat pancakes", cuisine: "continental", style: "sandwich", veg: [], pantry: ["atta"], dairy: ["milk", "butter"], time: 25 },
+    { id: "veg_uttapam", name: "Vegetable uttapam", cuisine: "indian", style: "batter", veg: ["onion", "tomato", "capsicum_red"], pantry: ["idli_dosa_batter"], dairy: [], time: 25 },
+    { id: "set_dosa_chutney", name: "Set dosa with chutney", cuisine: "indian", style: "batter", veg: ["onion"], pantry: ["idli_dosa_batter"], dairy: [], time: 20 },
+    { id: "rava_idli", name: "Rava idli with chutney", cuisine: "indian", style: "tiffin", veg: ["carrot", "peas"], pantry: ["suji"], dairy: ["ghee"], time: 30 },
+    { id: "muesli_bowl", name: "Yogurt and fruit muesli bowl", cuisine: "continental", style: "smoothie", veg: [], pantry: ["oats"], dairy: ["yogurt", "milk"], time: 10, usesYogurt: true },
+    { id: "moong_dosa", name: "Moong dal dosa", cuisine: "indian", style: "batter", veg: ["onion", "ginger"], pantry: ["moong_dal"], dairy: [], time: 30 },
   ],
   lunch: [
-    { id: "dal_rice_sabzi", name: "Dal, rice and seasonal sabzi", cuisine: "indian", veg: ["spinach", "potato"], pantry: ["toor_dal", "rice"], dairy: ["ghee"], time: 45 },
-    { id: "chole_rice", name: "Chole with steamed rice", cuisine: "indian", veg: ["onion", "tomato", "ginger"], pantry: ["chickpeas", "rice"], dairy: [], time: 50 },
-    { id: "rajma_rice", name: "Rajma with steamed rice", cuisine: "indian", veg: ["onion", "tomato", "ginger"], pantry: ["rajma", "rice"], dairy: [], time: 50 },
-    { id: "bhindi_roti", name: "Bhindi masala with roti", cuisine: "indian", veg: ["okra", "onion", "tomato"], pantry: ["atta"], dairy: ["ghee"], time: 35 },
-    { id: "lauki_dal_roti", name: "Lauki chana dal with roti", cuisine: "indian", veg: ["bottle_gourd", "onion"], pantry: ["chana_dal", "atta"], dairy: [], time: 40 },
-    { id: "cabbage_sabzi_roti", name: "Cabbage sabzi with roti", cuisine: "indian", veg: ["cabbage", "carrot", "peas"], pantry: ["atta"], dairy: ["ghee"], time: 30 },
-    { id: "paneer_curry_rice", name: "Paneer curry with rice", cuisine: "indian", veg: ["tomato", "onion", "bell_pepper"], pantry: ["rice"], dairy: ["paneer"], time: 40 },
-    { id: "veg_pulao", name: "Mixed vegetable pulao", cuisine: "indian", veg: ["carrot", "peas", "green_beans", "potato"], pantry: ["rice"], dairy: ["ghee"], time: 40 },
-    { id: "sambar_rice", name: "Sambar rice with vegetables", cuisine: "indian", veg: ["okra", "ridge_gourd", "tomato"], pantry: ["toor_dal", "rice"], dairy: [], time: 45 },
-    { id: "kadhi_rice", name: "Kadhi with steamed rice", cuisine: "indian", veg: ["onion"], pantry: ["besan", "rice"], dairy: ["yogurt"], time: 40 },
-    { id: "veg_khichdi", name: "Vegetable khichdi", cuisine: "indian", veg: ["carrot", "peas", "spinach"], pantry: ["rice", "moong_dal"], dairy: ["ghee"], time: 35 },
-    { id: "methi_thepla_curd", name: "Methi thepla with curd", cuisine: "indian", veg: ["fenugreek_leaves"], pantry: ["atta"], dairy: ["yogurt"], time: 30 },
-    { id: "pasta_primavera", name: "Vegetable pasta primavera", cuisine: "continental", veg: ["zucchini", "bell_pepper", "tomato", "broccoli"], pantry: ["pasta"], dairy: ["cheese", "butter"], time: 30 },
-    { id: "veg_burrito_bowl", name: "Vegetable and bean burrito bowl", cuisine: "continental", veg: ["bell_pepper", "corn", "tomato"], pantry: ["rice", "rajma"], dairy: ["cheese"], time: 35 },
-    { id: "stuffed_baked_potato", name: "Baked potato with vegetable filling", cuisine: "continental", veg: ["potato", "broccoli", "corn"], pantry: [], dairy: ["cheese", "butter"], time: 45 },
-    { id: "veg_fried_rice", name: "Vegetable fried rice", cuisine: "continental", veg: ["carrot", "capsicum_red", "cabbage", "corn"], pantry: ["rice"], dairy: [], time: 30 },
-    { id: "minestrone_bread", name: "Minestrone soup with bread", cuisine: "continental", veg: ["zucchini", "tomato", "cabbage", "carrot"], pantry: ["bread", "pasta"], dairy: ["cheese"], time: 35 },
-    { id: "chana_salad_pita", name: "Chickpea salad in pita", cuisine: "continental", veg: ["tomato", "cabbage", "bell_pepper"], pantry: ["chickpeas", "bread"], dairy: ["yogurt"], time: 20 },
+    // Rice + gravy/sabzi days
+    { id: "dal_rice_sabzi", name: "Dal, rice and seasonal sabzi", cuisine: "indian", style: "rice_gravy", veg: ["spinach", "potato"], pantry: ["toor_dal", "rice"], dairy: ["ghee"], time: 45 },
+    { id: "chole_rice", name: "Chole with steamed rice", cuisine: "indian", style: "rice_gravy", veg: ["onion", "tomato", "ginger"], pantry: ["chickpeas", "rice"], dairy: [], time: 50 },
+    { id: "rajma_rice", name: "Rajma with steamed rice", cuisine: "indian", style: "rice_gravy", veg: ["onion", "tomato", "ginger"], pantry: ["rajma", "rice"], dairy: [], time: 50 },
+    { id: "paneer_curry_rice", name: "Paneer curry with rice", cuisine: "indian", style: "rice_gravy", veg: ["tomato", "onion", "bell_pepper"], pantry: ["rice"], dairy: ["paneer"], time: 40 },
+    { id: "sambar_rice", name: "Sambar rice with vegetables", cuisine: "indian", style: "rice_gravy", veg: ["okra", "ridge_gourd", "tomato"], pantry: ["toor_dal", "rice"], dairy: [], time: 45 },
+    { id: "kadhi_rice", name: "Kadhi with steamed rice", cuisine: "indian", style: "rice_gravy", veg: ["onion"], pantry: ["besan", "rice"], dairy: ["yogurt"], time: 40, usesYogurt: true },
+    { id: "lobia_rice", name: "Black-eyed peas curry with rice", cuisine: "indian", style: "rice_gravy", veg: ["onion", "tomato"], pantry: ["rice", "chickpeas"], dairy: [], time: 45 },
+    // Pulao / biryani days
+    { id: "veg_pulao", name: "Mixed vegetable pulao", cuisine: "indian", style: "pulao_biryani", veg: ["carrot", "peas", "green_beans", "potato"], pantry: ["rice"], dairy: ["ghee"], time: 40 },
+    { id: "paneer_biryani", name: "Paneer biryani", cuisine: "indian", style: "pulao_biryani", veg: ["onion", "tomato", "bell_pepper"], pantry: ["rice"], dairy: ["paneer", "yogurt"], time: 50, usesYogurt: true },
+    { id: "veg_fried_rice", name: "Vegetable fried rice", cuisine: "continental", style: "pulao_biryani", veg: ["carrot", "capsicum_red", "cabbage", "corn"], pantry: ["rice"], dairy: [], time: 30 },
+    { id: "lemon_rice", name: "Lemon rice with peanuts", cuisine: "indian", style: "pulao_biryani", veg: ["peas", "carrot"], pantry: ["rice", "peanuts"], dairy: [], time: 25 },
+    // Roti + sabzi/dal days
+    { id: "bhindi_roti", name: "Bhindi masala with roti", cuisine: "indian", style: "roti_sabzi", veg: ["okra", "onion", "tomato"], pantry: ["atta"], dairy: ["ghee"], time: 35 },
+    { id: "lauki_dal_roti", name: "Lauki chana dal with roti", cuisine: "indian", style: "roti_sabzi", veg: ["bottle_gourd", "onion"], pantry: ["chana_dal", "atta"], dairy: [], time: 40 },
+    { id: "cabbage_sabzi_roti", name: "Cabbage sabzi with roti", cuisine: "indian", style: "roti_sabzi", veg: ["cabbage", "carrot", "peas"], pantry: ["atta"], dairy: ["ghee"], time: 30 },
+    { id: "gobi_masala_roti", name: "Cauliflower masala with roti", cuisine: "indian", style: "roti_sabzi", veg: ["cauliflower", "tomato", "onion"], pantry: ["atta"], dairy: ["ghee"], time: 35 },
+    { id: "methi_thepla_curd", name: "Methi thepla with curd", cuisine: "indian", style: "roti_sabzi", veg: ["fenugreek_leaves"], pantry: ["atta"], dairy: ["yogurt"], time: 30, usesYogurt: true },
+    { id: "mixveg_roti_lunch", name: "Mixed vegetable curry with roti", cuisine: "indian", style: "roti_sabzi", veg: ["carrot", "beetroot", "green_beans", "potato"], pantry: ["atta"], dairy: ["ghee"], time: 40 },
+    { id: "pumpkin_sabzi_roti", name: "Pumpkin sabzi with roti", cuisine: "indian", style: "roti_sabzi", veg: ["pumpkin", "onion"], pantry: ["atta"], dairy: ["ghee"], time: 30 },
+    // Continental days
+    { id: "pasta_primavera", name: "Vegetable pasta primavera", cuisine: "continental", style: "continental_meal", veg: ["zucchini", "bell_pepper", "tomato", "broccoli"], pantry: ["pasta"], dairy: ["cheese", "butter"], time: 30 },
+    { id: "minestrone_bread", name: "Minestrone soup with bread", cuisine: "continental", style: "continental_meal", veg: ["zucchini", "tomato", "cabbage", "carrot"], pantry: ["bread", "pasta"], dairy: ["cheese"], time: 35 },
+    { id: "chana_salad_pita", name: "Chickpea salad in pita with soup", cuisine: "continental", style: "continental_meal", veg: ["tomato", "cabbage", "bell_pepper"], pantry: ["chickpeas", "bread"], dairy: ["yogurt"], time: 25, usesYogurt: true },
+    { id: "stuffed_baked_potato", name: "Baked potato with vegetable filling", cuisine: "continental", style: "continental_meal", veg: ["potato", "broccoli", "corn"], pantry: [], dairy: ["cheese", "butter"], time: 45 },
+    { id: "veg_burrito_bowl", name: "Vegetable and bean burrito bowl", cuisine: "continental", style: "continental_meal", veg: ["bell_pepper", "corn", "tomato"], pantry: ["rice", "rajma"], dairy: ["cheese"], time: 35 },
+    { id: "caesar_salad_soup", name: "Garden salad with tomato soup", cuisine: "continental", style: "continental_meal", veg: ["cabbage", "carrot", "tomato", "bell_pepper"], pantry: ["bread"], dairy: ["cheese"], time: 25 },
   ],
   dinner: [
-    { id: "palak_paneer_roti", name: "Palak paneer with roti", cuisine: "indian", veg: ["spinach", "onion", "tomato"], pantry: ["atta"], dairy: ["paneer"], time: 45 },
-    { id: "mixveg_roti", name: "Mixed vegetable curry with roti", cuisine: "indian", veg: ["carrot", "beetroot", "green_beans", "potato"], pantry: ["atta"], dairy: ["ghee"], time: 40 },
-    { id: "dal_makhani_rice", name: "Dal makhani with rice", cuisine: "indian", veg: ["tomato", "onion", "ginger"], pantry: ["rajma", "rice"], dairy: ["butter", "ghee"], time: 50 },
-    { id: "baingan_bharta_roti", name: "Baingan bharta with roti", cuisine: "indian", veg: ["eggplant", "onion", "tomato"], pantry: ["atta"], dairy: ["ghee"], time: 40 },
-    { id: "kadhai_veg_roti", name: "Kadhai vegetables with roti", cuisine: "indian", veg: ["bell_pepper", "onion", "cauliflower"], pantry: ["atta"], dairy: [], time: 35 },
-    { id: "gobi_masala_roti", name: "Cauliflower masala with roti", cuisine: "indian", veg: ["cauliflower", "tomato", "onion"], pantry: ["atta"], dairy: ["ghee"], time: 35 },
-    { id: "pumpkin_sabzi_roti", name: "Pumpkin sabzi with roti", cuisine: "indian", veg: ["pumpkin", "onion"], pantry: ["atta"], dairy: ["ghee"], time: 30 },
-    { id: "paneer_bhurji_roti", name: "Paneer bhurji with roti", cuisine: "indian", veg: ["onion", "tomato", "bell_pepper"], pantry: ["atta"], dairy: ["paneer"], time: 25 },
-    { id: "veg_kofta_rice", name: "Vegetable kofta curry with rice", cuisine: "indian", veg: ["carrot", "cabbage", "potato"], pantry: ["rice", "besan"], dairy: [], time: 55 },
-    { id: "lobia_rice", name: "Black-eyed peas curry with rice", cuisine: "indian", veg: ["onion", "tomato"], pantry: ["rice", "chickpeas"], dairy: [], time: 45 },
-    { id: "methi_malai_roti", name: "Methi malai with roti", cuisine: "indian", veg: ["fenugreek_leaves", "onion"], pantry: ["atta"], dairy: ["paneer", "butter"], time: 35 },
-    { id: "veg_lasagna", name: "Vegetable lasagna", cuisine: "continental", veg: ["zucchini", "spinach", "tomato"], pantry: ["pasta"], dairy: ["cheese", "butter"], time: 60 },
-    { id: "stuffed_capsicum", name: "Stuffed bell peppers", cuisine: "continental", veg: ["bell_pepper", "corn", "tomato"], pantry: ["rice"], dairy: ["cheese"], time: 45 },
-    { id: "veg_stirfry_noodles", name: "Vegetable stir-fry with noodles", cuisine: "continental", veg: ["broccoli", "carrot", "cabbage", "capsicum_red"], pantry: ["pasta"], dairy: [], time: 30 },
-    { id: "shepherds_pie_veg", name: "Vegetable shepherd's pie", cuisine: "continental", veg: ["carrot", "peas", "potato"], pantry: [], dairy: ["milk", "butter", "cheese"], time: 55 },
-    { id: "paneer_tikka_gravy", name: "Paneer tikka in gravy with roti", cuisine: "indian", veg: ["bell_pepper", "onion", "tomato"], pantry: ["atta"], dairy: ["paneer", "yogurt"], time: 40 },
+    // Quick batter-based — idli/dosa, the household staple, weighted in generator to hit 3-4x/week
+    { id: "plain_dosa_chutney_dinner", name: "Plain dosa with chutney", cuisine: "indian", style: "batter_quick", veg: ["onion"], pantry: ["idli_dosa_batter"], dairy: [], time: 20 },
+    { id: "idli_chutney_dinner", name: "Idli with chutney and sambar", cuisine: "indian", style: "batter_quick", veg: ["onion", "tomato"], pantry: ["idli_dosa_batter", "toor_dal"], dairy: [], time: 25 },
+    { id: "masala_dosa_dinner", name: "Masala dosa", cuisine: "indian", style: "batter_quick", veg: ["potato", "onion"], pantry: ["idli_dosa_batter"], dairy: [], time: 25 },
+    { id: "set_dosa_dinner", name: "Set dosa with chutney", cuisine: "indian", style: "batter_quick", veg: ["onion"], pantry: ["idli_dosa_batter"], dairy: [], time: 20 },
+    { id: "rava_dosa_dinner", name: "Rava dosa with chutney", cuisine: "indian", style: "batter_quick", veg: ["onion"], pantry: ["idli_dosa_batter", "suji"], dairy: [], time: 25 },
+    // Quick one-pot — khichdi etc
+    { id: "veg_khichdi_dinner", name: "Vegetable khichdi", cuisine: "indian", style: "onepot_quick", veg: ["carrot", "peas", "spinach"], pantry: ["rice", "moong_dal"], dairy: ["ghee"], time: 35 },
+    { id: "moong_dal_khichdi", name: "Moong dal khichdi", cuisine: "indian", style: "onepot_quick", veg: ["carrot", "peas"], pantry: ["rice", "moong_dal"], dairy: ["ghee"], time: 30 },
+    { id: "veg_dalia_dinner", name: "Vegetable dalia (broken wheat)", cuisine: "indian", style: "onepot_quick", veg: ["carrot", "beetroot", "peas"], pantry: ["suji"], dairy: ["ghee"], time: 30 },
+    // Roti/curry dinners
+    { id: "palak_paneer_roti", name: "Palak paneer with roti", cuisine: "indian", style: "roti_curry", veg: ["spinach", "onion", "tomato"], pantry: ["atta"], dairy: ["paneer"], time: 45 },
+    { id: "dal_makhani_rice", name: "Dal makhani with rice", cuisine: "indian", style: "roti_curry", veg: ["tomato", "onion", "ginger"], pantry: ["rajma", "rice"], dairy: ["butter", "ghee"], time: 50 },
+    { id: "baingan_bharta_roti", name: "Baingan bharta with roti", cuisine: "indian", style: "roti_curry", veg: ["eggplant", "onion", "tomato"], pantry: ["atta"], dairy: ["ghee"], time: 40 },
+    { id: "kadhai_veg_roti", name: "Kadhai vegetables with roti", cuisine: "indian", style: "roti_curry", veg: ["bell_pepper", "onion", "cauliflower"], pantry: ["atta"], dairy: [], time: 35 },
+    { id: "paneer_bhurji_roti", name: "Paneer bhurji with roti", cuisine: "indian", style: "roti_curry", veg: ["onion", "tomato", "bell_pepper"], pantry: ["atta"], dairy: ["paneer"], time: 25 },
+    { id: "methi_malai_roti", name: "Methi malai with roti", cuisine: "indian", style: "roti_curry", veg: ["fenugreek_leaves", "onion"], pantry: ["atta"], dairy: ["paneer", "butter"], time: 35 },
+    { id: "paneer_tikka_gravy", name: "Paneer tikka in gravy with roti", cuisine: "indian", style: "roti_curry", veg: ["bell_pepper", "onion", "tomato"], pantry: ["atta"], dairy: ["paneer", "yogurt"], time: 40, usesYogurt: true },
+    // Continental dinners (occasional, ~20%)
+    { id: "veg_stirfry_noodles", name: "Vegetable stir-fry with noodles", cuisine: "continental", style: "continental_meal", veg: ["broccoli", "carrot", "cabbage", "capsicum_red"], pantry: ["pasta"], dairy: [], time: 30 },
+    { id: "stuffed_capsicum", name: "Stuffed bell peppers", cuisine: "continental", style: "continental_meal", veg: ["bell_pepper", "corn", "tomato"], pantry: ["rice"], dairy: ["cheese"], time: 45 },
+    { id: "shepherds_pie_veg", name: "Vegetable shepherd's pie", cuisine: "continental", style: "continental_meal", veg: ["carrot", "peas", "potato"], pantry: [], dairy: ["milk", "butter", "cheese"], time: 55 },
   ],
 };
+
+/* Quick easy-swap suggestion shown whenever a dish's primary dairy is
+   yogurt — for the household member who doesn't eat yogurt. */
+function yogurtAlternativeFor(dish) {
+  if (!dish.usesYogurt) return null;
+  if (dish.style === "smoothie") {
+    return "Swap the yogurt for a scoop of protein powder blended with milk and banana, or use a plant-based milk smoothie instead.";
+  }
+  if (dish.style === "paratha" || dish.style === "roti_sabzi") {
+    return "Skip the side of curd — serve with a quick protein shake or a glass of spiced buttermilk-free lassi alternative (milk + fruit) on the side instead.";
+  }
+  return "Leave the yogurt out of the dish and serve a protein shake or fruit smoothie alongside for the person who skips curd.";
+}
 
 /* Baby-adaptation note generator — derived from the actual dish each
    time, not hardcoded, so it never goes stale if dishes are swapped. */
@@ -138,8 +180,14 @@ function babyNoteFor(dish) {
   const vegPhrase = vegNames.length
     ? `the ${vegNames.slice(0, 2).join(" and ")}`
     : "the main ingredients";
+  if (dish.style === "batter" || dish.style === "batter_quick") {
+    return `Steam a small idli soft and plain, or tear soft dosa into small pieces. Skip chutney's chilli and serve with a little ghee or mild dal instead.`;
+  }
   if (dish.dairy.includes("paneer") || dish.pantry.includes("rajma") || dish.pantry.includes("chickpeas") || dish.pantry.includes("chana_dal")) {
     return `Mash a small portion well, skip whole spices and chilli, and soften ${vegPhrase} extra. Add a few drops of ghee.`;
+  }
+  if (dish.style === "smoothie" || dish.style === "porridge") {
+    return `Offer a small unsweetened portion without any added sugar, thinned with a little extra milk to a spoonable consistency.`;
   }
   if (dish.cuisine === "continental" && dish.pantry.includes("pasta")) {
     return `Chop pasta into small pieces, skip any chilli flakes, and mash ${vegPhrase} soft. Keep cheese light.`;
@@ -153,14 +201,20 @@ function babyNoteFor(dish) {
 const DAY_NAMES = ["Saturday", "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
 
 /* ---------------------------------------------------------------------
-   GENERATOR — real rotation logic.
-   Each week, pick a small set of "hero" vegetables to feature heavily
-   (so they get used up), then greedily prefer dishes containing them
-   before reaching for dishes that introduce fresh vegetables.
+   GENERATOR
+   Two layers:
+   1) A weekly day-pattern plan that mirrors the household's real
+      rhythm: lunches alternate rice-gravy / pulao-biryani / roti-sabzi /
+      continental; dinners lean on quick batter (idli/dosa) and one-pot
+      meals, hitting the batter staple 3-4x/week, with roti-curry and
+      occasional continental filling the rest.
+   2) Vegetable rotation scoring on top of the pattern, same as before,
+      so within whichever style is picked, vegetables still get used up
+      before new ones are introduced.
 --------------------------------------------------------------------- */
 
-function pickHeroVegetables(rng, count = 7) {
-  const shuffled = [...VEGETABLES].sort(() => rng() - 0.5);
+function pickHeroVegetables(count = 7) {
+  const shuffled = [...VEGETABLES].sort(() => Math.random() - 0.5);
   return shuffled.slice(0, count).map((v) => v.id);
 }
 
@@ -168,21 +222,15 @@ function scoreDish(dish, heroSet, usedCount) {
   let score = 0;
   dish.veg.forEach((v) => {
     if (heroSet.has(v)) score += 3;
-    score -= (usedCount[v] || 0) * 0.4; // diminishing returns to avoid identical repeats
+    score -= (usedCount[v] || 0) * 0.4;
   });
-  return score + Math.random() * 1.5; // jitter so it's not deterministic
+  return score + Math.random() * 1.5;
 }
 
-function pickDish(slot, heroSet, usedCount, recentIds, cuisineBias) {
-  const pool = DISHES[slot].filter((d) => !recentIds.has(d.id));
-  const candidates = pool.length ? pool : DISHES[slot];
-  const wantIndian = Math.random() < cuisineBias;
-  const filtered = candidates.filter((d) => (wantIndian ? d.cuisine === "indian" : d.cuisine === "continental"));
-  const finalPool = filtered.length ? filtered : candidates;
-
+function pickFromPool(pool, heroSet, usedCount) {
   let best = null;
   let bestScore = -Infinity;
-  finalPool.forEach((d) => {
+  pool.forEach((d) => {
     const s = scoreDish(d, heroSet, usedCount);
     if (s > bestScore) {
       bestScore = s;
@@ -192,19 +240,75 @@ function pickDish(slot, heroSet, usedCount, recentIds, cuisineBias) {
   return best;
 }
 
-function generateMealPlan(previousPlan) {
-  const heroVegIds = pickHeroVegetables(Math.random, 7);
+// Build a 7-day lunch style sequence: ~2 rice-gravy, ~2 roti-sabzi,
+// ~1-2 pulao/biryani, ~1 continental — shuffled across the week.
+function buildLunchStylePattern() {
+  const pattern = ["rice_gravy", "rice_gravy", "roti_sabzi", "roti_sabzi", "pulao_biryani", "continental_meal"];
+  while (pattern.length < 7) pattern.push(Math.random() < 0.5 ? "roti_sabzi" : "rice_gravy");
+  return pattern.sort(() => Math.random() - 0.5).slice(0, 7);
+}
+
+// Build a 7-day dinner style sequence: 3-4 batter_quick (the household
+// staple), 1-2 onepot_quick, rest roti_curry / occasional continental.
+function buildDinnerStylePattern() {
+  const batterCount = 3 + (Math.random() < 0.5 ? 0 : 1); // 3 or 4
+  const onepotCount = Math.random() < 0.6 ? 2 : 1;
+  const continentalCount = Math.random() < 0.4 ? 1 : 0;
+  const pattern = [];
+  for (let i = 0; i < batterCount; i++) pattern.push("batter_quick");
+  for (let i = 0; i < onepotCount; i++) pattern.push("onepot_quick");
+  for (let i = 0; i < continentalCount; i++) pattern.push("continental_meal");
+  while (pattern.length < 7) pattern.push("roti_curry");
+  return pattern.sort(() => Math.random() - 0.5).slice(0, 7);
+}
+
+function buildDayMealsForStyles(slot, styleForDay, heroSet, usedCount, recentIds) {
+  const stylePool = DISHES[slot].filter((d) => d.style === styleForDay && !recentIds.has(d.id));
+  const fallbackStylePool = DISHES[slot].filter((d) => d.style === styleForDay);
+  const pool = stylePool.length ? stylePool : fallbackStylePool.length ? fallbackStylePool : DISHES[slot];
+  return pickFromPool(pool, heroSet, usedCount);
+}
+
+function pickBreakfast(heroSet, usedCount, recentIds) {
+  // Breakfast follows the described mix: idli ~1x, sandwiches ~2x,
+  // ganji/smoothie ~1x, upma/tiffin style filling the rest.
+  const weighted = [];
+  DISHES.breakfast.forEach((d) => {
+    let weight = 1;
+    if (d.style === "batter") weight = 1.4;
+    if (d.style === "sandwich") weight = 1.8;
+    if (d.style === "smoothie" || d.style === "porridge") weight = 1.2;
+    if (d.style === "tiffin" || d.style === "paratha") weight = 1.3;
+    for (let i = 0; i < Math.round(weight * 10); i++) weighted.push(d);
+  });
+  const fresh = weighted.filter((d) => !recentIds.has(d.id));
+  const pool = fresh.length ? fresh : weighted;
+  return pickFromPool(pool, heroSet, usedCount);
+}
+
+function generateMealPlan() {
+  const heroVegIds = pickHeroVegetables(7);
   const heroSet = new Set(heroVegIds);
   const usedCount = {};
   const recentByDish = { breakfast: new Set(), lunch: new Set(), dinner: new Set() };
 
+  const lunchStyles = buildLunchStylePattern();
+  const dinnerStyles = buildDinnerStylePattern();
+
   const days = DAY_NAMES.map((dayName, idx) => {
     const meals = {};
-    ["breakfast", "lunch", "dinner"].forEach((slot) => {
-      const dish = pickDish(slot, heroSet, usedCount, recentByDish[slot], 0.8);
+
+    const breakfastDish = pickBreakfast(heroSet, usedCount, recentByDish.breakfast);
+    const lunchDish = buildDayMealsForStyles("lunch", lunchStyles[idx], heroSet, usedCount, recentByDish.lunch);
+    const dinnerDish = buildDayMealsForStyles("dinner", dinnerStyles[idx], heroSet, usedCount, recentByDish.dinner);
+
+    [
+      ["breakfast", breakfastDish],
+      ["lunch", lunchDish],
+      ["dinner", dinnerDish],
+    ].forEach(([slot, dish]) => {
       dish.veg.forEach((v) => (usedCount[v] = (usedCount[v] || 0) + 1));
       recentByDish[slot].add(dish.id);
-      // allow repeats after 3 days so variety stays high across the week
       if (recentByDish[slot].size > 3) {
         const first = recentByDish[slot].values().next().value;
         recentByDish[slot].delete(first);
@@ -212,12 +316,13 @@ function generateMealPlan(previousPlan) {
       meals[slot] = {
         ...dish,
         babyNote: babyNoteFor(dish),
+        yogurtAlt: yogurtAlternativeFor(dish),
       };
     });
+
     return {
       id: `day-${idx}`,
       day: dayName,
-      date: null,
       meals,
       expanded: idx === 0,
     };
@@ -235,16 +340,35 @@ function regenerateSingleDay(plan, dayId) {
       d.meals[slot].veg.forEach((v) => (usedCount[v] = (usedCount[v] || 0) + 1));
     });
   });
+
+  const targetDay = plan.days.find((d) => d.id === dayId);
+
   const newDays = plan.days.map((d) => {
     if (d.id !== dayId) return d;
     const meals = {};
-    ["breakfast", "lunch", "dinner"].forEach((slot) => {
-      const avoid = new Set([d.meals[slot].id]);
-      const dish = pickDish(slot, heroSet, usedCount, avoid, 0.8);
-      meals[slot] = { ...dish, babyNote: babyNoteFor(dish) };
+
+    const breakfastAvoid = new Set([d.meals.breakfast.id]);
+    const breakfastDish = pickBreakfast(heroSet, usedCount, breakfastAvoid);
+
+    const lunchStyle = d.meals.lunch.style;
+    const lunchAvoid = new Set([d.meals.lunch.id]);
+    const lunchDish = buildDayMealsForStyles("lunch", lunchStyle, heroSet, usedCount, lunchAvoid);
+
+    const dinnerStyle = d.meals.dinner.style;
+    const dinnerAvoid = new Set([d.meals.dinner.id]);
+    const dinnerDish = buildDayMealsForStyles("dinner", dinnerStyle, heroSet, usedCount, dinnerAvoid);
+
+    [
+      ["breakfast", breakfastDish],
+      ["lunch", lunchDish],
+      ["dinner", dinnerDish],
+    ].forEach(([slot, dish]) => {
+      meals[slot] = { ...dish, babyNote: babyNoteFor(dish), yogurtAlt: yogurtAlternativeFor(dish) };
     });
+
     return { ...d, meals };
   });
+
   return { ...plan, days: newDays };
 }
 
@@ -342,6 +466,7 @@ function MealRow({ slot, dish }) {
         <Tag tone={dish.cuisine === "indian" ? "amber" : "green"}>
           {dish.cuisine === "indian" ? "Indian" : "Continental"}
         </Tag>
+        {dish.style === "batter_quick" && <Tag tone="green">Idli/dosa batter</Tag>}
       </div>
       <div
         style={{
@@ -357,6 +482,22 @@ function MealRow({ slot, dish }) {
         <strong style={{ color: COLORS.primary }}>Baby: </strong>
         {dish.babyNote}
       </div>
+      {dish.yogurtAlt && (
+        <div
+          style={{
+            marginTop: 6,
+            fontSize: 12.5,
+            color: COLORS.textMuted,
+            background: "#FBF1E6",
+            borderRadius: 8,
+            padding: "8px 10px",
+            lineHeight: 1.4,
+          }}
+        >
+          <strong style={{ color: COLORS.amber }}>No-yogurt swap: </strong>
+          {dish.yogurtAlt}
+        </div>
+      )}
     </div>
   );
 }
@@ -498,7 +639,7 @@ export default function MealPlannerApp() {
   const [toast, setToast] = useState(null);
 
   useEffect(() => {
-    setPlan(generateMealPlan(null));
+    setPlan(generateMealPlan());
   }, []);
 
   useEffect(() => {
@@ -527,7 +668,7 @@ export default function MealPlannerApp() {
 
   function handleRegenerateWeek() {
     setToast("New week generated");
-    setPlan(generateMealPlan(plan));
+    setPlan(generateMealPlan());
     setCheckedItems({});
   }
 
@@ -622,13 +763,14 @@ export default function MealPlannerApp() {
               <div style={{ background: COLORS.cardBg, border: `0.5px solid ${COLORS.border}`, borderRadius: 12, padding: 16, marginBottom: 12 }}>
                 <div style={{ fontWeight: 700, color: COLORS.primary, marginBottom: 6, fontSize: 14 }}>Household</div>
                 <div style={{ fontSize: 13, color: COLORS.textMuted, lineHeight: 1.6 }}>
-                  3 adults, vegetarian · 1 baby (11 months), soft and lightly salted meals
+                  3 adults, vegetarian · 1 baby (11 months), soft and lightly salted meals · one adult skips yogurt
                 </div>
               </div>
               <div style={{ background: COLORS.cardBg, border: `0.5px solid ${COLORS.border}`, borderRadius: 12, padding: 16, marginBottom: 12 }}>
                 <div style={{ fontWeight: 700, color: COLORS.primary, marginBottom: 6, fontSize: 14 }}>Meal mix</div>
                 <div style={{ fontSize: 13, color: COLORS.textMuted, lineHeight: 1.6 }}>
-                  Roughly 80% Indian vegetarian, 20% continental · no eggs, no mushroom · cook time under 60 minutes
+                  Roughly 80% Indian vegetarian, 20% continental · idli/dosa batter featured 3-4 dinners a week · no eggs, no
+                  mushroom · cook time under 60 minutes
                 </div>
               </div>
               <div style={{ background: COLORS.cardBg, border: `0.5px solid ${COLORS.border}`, borderRadius: 12, padding: 16 }}>
