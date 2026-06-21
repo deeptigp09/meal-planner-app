@@ -37,7 +37,11 @@ const VEGETABLES = [
 
 const vegById = Object.fromEntries(VEGETABLES.map((v) => [v.id, v]));
 
-const DEFAULT_HOUSEHOLD_SIZE = 3; // shown in Settings; cosmetic only, doesn't affect the grocery list
+const STORES = [
+  { id: "walmart", label: "Walmart" },
+  { id: "sams_club", label: "Sam's Club" },
+  { id: "indian_store", label: "Indian store" },
+];
 
 // Pantry / dairy items that recur — kept separate from rotation since
 // they're restocked rather than "used up" the way produce is.
@@ -585,7 +589,136 @@ function DayCard({ day, isToday, onToggle, onRegenerate, regenerating }) {
   );
 }
 
-function GroceryGroup({ title, items, checked, onToggle, subtitle = null }) {
+function InfoBubble({ text }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div style={{ position: "relative" }}>
+      <button
+        onClick={() => setOpen((o) => !o)}
+        aria-label="App information"
+        style={{
+          width: 24,
+          height: 24,
+          borderRadius: "50%",
+          border: `1px solid ${COLORS.primary}`,
+          background: "transparent",
+          color: COLORS.primary,
+          fontSize: 12,
+          fontWeight: 700,
+          fontStyle: "italic",
+          fontFamily: "Georgia, serif",
+          cursor: "pointer",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        i
+      </button>
+      {open && (
+        <>
+          <div onClick={() => setOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 30 }} />
+          <div
+            style={{
+              position: "absolute",
+              right: 0,
+              top: "calc(100% + 6px)",
+              background: COLORS.primary,
+              color: "white",
+              fontSize: 12,
+              lineHeight: 1.4,
+              padding: "10px 12px",
+              borderRadius: 10,
+              zIndex: 31,
+              width: 200,
+            }}
+          >
+            {text}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function StorePickerTag({ itemId, assignedStoreId, onAssign }) {
+  const [open, setOpen] = useState(false);
+  const assignedStore = STORES.find((s) => s.id === assignedStoreId);
+
+  return (
+    <div style={{ position: "relative", flexShrink: 0 }}>
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpen((o) => !o);
+        }}
+        style={{
+          fontSize: 11,
+          fontWeight: 600,
+          padding: "4px 8px",
+          borderRadius: 7,
+          border: `0.5px solid ${assignedStore ? COLORS.amber : COLORS.border}`,
+          background: assignedStore ? "#FBF1E6" : "transparent",
+          color: assignedStore ? COLORS.amber : COLORS.textMuted,
+          cursor: "pointer",
+          whiteSpace: "nowrap",
+        }}
+      >
+        {assignedStore ? assignedStore.label : "Choose store"}
+      </button>
+      {open && (
+        <>
+          <div
+            onClick={(e) => {
+              e.stopPropagation();
+              setOpen(false);
+            }}
+            style={{ position: "fixed", inset: 0, zIndex: 30 }}
+          />
+          <div
+            style={{
+              position: "absolute",
+              right: 0,
+              top: "calc(100% + 4px)",
+              background: COLORS.cardBg,
+              border: `0.5px solid ${COLORS.border}`,
+              borderRadius: 10,
+              overflow: "hidden",
+              zIndex: 31,
+              minWidth: 140,
+            }}
+          >
+            {STORES.map((store) => (
+              <button
+                key={store.id}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onAssign(itemId, store.id === assignedStoreId ? null : store.id);
+                  setOpen(false);
+                }}
+                style={{
+                  width: "100%",
+                  textAlign: "left",
+                  padding: "10px 12px",
+                  fontSize: 13,
+                  fontWeight: store.id === assignedStoreId ? 700 : 500,
+                  color: store.id === assignedStoreId ? COLORS.primary : COLORS.text,
+                  background: store.id === assignedStoreId ? "#EEF3EF" : "transparent",
+                  border: "none",
+                  cursor: "pointer",
+                }}
+              >
+                {store.label}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function GroceryGroup({ title, items, checked, onToggle, storeAssignments, onAssignStore, subtitle = null }) {
   if (!items.length) return null;
   return (
     <div style={{ marginBottom: 18 }}>
@@ -602,50 +735,138 @@ function GroceryGroup({ title, items, checked, onToggle, subtitle = null }) {
         {items.map((item, i) => {
           const isChecked = !!checked[item.id];
           return (
-            <button
+            <div
               key={item.id}
-              onClick={() => onToggle(item.id)}
               style={{
                 width: "100%",
                 display: "flex",
                 alignItems: "center",
+                justifyContent: "space-between",
                 padding: "12px 14px",
-                background: "transparent",
-                border: "none",
                 borderTop: i === 0 ? "none" : `0.5px solid ${COLORS.border}`,
-                cursor: "pointer",
-                textAlign: "left",
               }}
             >
-              <span
+              <button
+                onClick={() => onToggle(item.id)}
                 style={{
-                  width: 18,
-                  height: 18,
-                  borderRadius: 5,
-                  border: `1.5px solid ${isChecked ? COLORS.primary : COLORS.textMuted}`,
-                  background: isChecked ? COLORS.primary : "transparent",
                   display: "flex",
                   alignItems: "center",
-                  justifyContent: "center",
-                  flexShrink: 0,
+                  background: "transparent",
+                  border: "none",
+                  cursor: "pointer",
+                  textAlign: "left",
+                  padding: 0,
+                  flex: 1,
+                  minWidth: 0,
                 }}
               >
-                {isChecked && <span style={{ color: "white", fontSize: 11, lineHeight: 1 }}>✓</span>}
-              </span>
-              <span
-                style={{
-                  fontSize: 14,
-                  marginLeft: 10,
-                  color: isChecked ? COLORS.textMuted : COLORS.text,
-                  textDecoration: isChecked ? "line-through" : "none",
-                }}
-              >
-                {item.name}
-              </span>
-            </button>
+                <span
+                  style={{
+                    width: 18,
+                    height: 18,
+                    borderRadius: 5,
+                    border: `1.5px solid ${isChecked ? COLORS.primary : COLORS.textMuted}`,
+                    background: isChecked ? COLORS.primary : "transparent",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexShrink: 0,
+                  }}
+                >
+                  {isChecked && <span style={{ color: "white", fontSize: 11, lineHeight: 1 }}>✓</span>}
+                </span>
+                <span
+                  style={{
+                    fontSize: 14,
+                    marginLeft: 10,
+                    color: isChecked ? COLORS.textMuted : COLORS.text,
+                    textDecoration: isChecked ? "line-through" : "none",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {item.name}
+                </span>
+              </button>
+              <div style={{ marginLeft: 8 }}>
+                <StorePickerTag
+                  itemId={item.id}
+                  assignedStoreId={storeAssignments[item.id]}
+                  onAssign={onAssignStore}
+                />
+              </div>
+            </div>
           );
         })}
       </div>
+    </div>
+  );
+}
+
+/* ---------------------------------------------------------------------
+   BY STORE VIEW — groups every grocery item by the store the user
+   assigned it to. Populated entirely by the person's own taps on the
+   Grocery list tab; nothing here is pre-set.
+--------------------------------------------------------------------- */
+
+function ByStoreView({ allItems, storeAssignments }) {
+  const groups = { walmart: [], sams_club: [], indian_store: [], unassigned: [] };
+
+  allItems.forEach((item) => {
+    const storeId = storeAssignments[item.id];
+    if (storeId && groups[storeId]) {
+      groups[storeId].push(item);
+    } else {
+      groups.unassigned.push(item);
+    }
+  });
+
+  const sections = [
+    { id: "walmart", label: "Walmart" },
+    { id: "sams_club", label: "Sam's Club" },
+    { id: "indian_store", label: "Indian store" },
+    { id: "unassigned", label: "Unassigned" },
+  ];
+
+  const anyAssigned = sections.slice(0, 3).some((s) => groups[s.id].length > 0);
+
+  if (!anyAssigned && groups.unassigned.length === allItems.length) {
+    return (
+      <div style={{ textAlign: "center", color: COLORS.textMuted, fontSize: 13, marginTop: 40, lineHeight: 1.6, padding: "0 20px" }}>
+        Choose a store for items on the grocery list tab — they'll show up here, grouped by where you're buying them.
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      {sections.map((section) => {
+        const items = groups[section.id];
+        if (!items.length) return null;
+        return (
+          <div key={section.id} style={{ marginBottom: 18 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.amber, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 8 }}>
+              {section.label}
+            </div>
+            <div style={{ background: COLORS.cardBg, border: `0.5px solid ${COLORS.border}`, borderRadius: 12, overflow: "hidden" }}>
+              {items.map((item, i) => (
+                <div
+                  key={item.id}
+                  style={{
+                    padding: "12px 14px",
+                    fontSize: 14,
+                    color: COLORS.text,
+                    borderTop: i === 0 ? "none" : `0.5px solid ${COLORS.border}`,
+                  }}
+                >
+                  {item.name}
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -660,7 +881,7 @@ export default function MealPlannerApp() {
   const [checkedItems, setCheckedItems] = useState({});
   const [regeneratingDay, setRegeneratingDay] = useState(null);
   const [toast, setToast] = useState(null);
-  const [householdSize, setHouseholdSize] = useState(() => safeGet("householdSize", DEFAULT_HOUSEHOLD_SIZE));
+  const [storeAssignments, setStoreAssignments] = useState(() => safeGet("storeAssignments", {}));
 
   useEffect(() => {
     setPlan(generateMealPlan());
@@ -673,14 +894,23 @@ export default function MealPlannerApp() {
   }, [toast]);
 
   useEffect(() => {
-    safeSet("householdSize", householdSize);
-  }, [householdSize]);
+    safeSet("storeAssignments", storeAssignments);
+  }, [storeAssignments]);
 
-  function changeHouseholdSize(delta) {
-    setHouseholdSize((n) => Math.min(10, Math.max(1, n + delta)));
+  function assignStore(itemId, storeId) {
+    setStoreAssignments((prev) => {
+      const next = { ...prev };
+      if (storeId) {
+        next[itemId] = storeId;
+      } else {
+        delete next[itemId];
+      }
+      return next;
+    });
   }
 
   const groceries = plan ? buildGroceryList(plan) : { vegetables: [], dairy: [], pantry: [] };
+  const allGroceryItems = [...groceries.vegetables, ...groceries.dairy, ...groceries.pantry];
 
   function toggleDay(dayId) {
     setPlan((p) => ({
@@ -729,7 +959,7 @@ export default function MealPlannerApp() {
               <div style={{ fontSize: 20, fontWeight: 800, color: COLORS.primary, letterSpacing: -0.3 }}>
                 {tab === "week" && "This week"}
                 {tab === "grocery" && "Grocery list"}
-                {tab === "settings" && "Settings"}
+                {tab === "bystore" && "By store"}
               </div>
               {tab === "week" && (
                 <div style={{ fontSize: 12.5, color: COLORS.textMuted, marginTop: 2 }}>Saturday to Friday · 21 meals + baby</div>
@@ -738,6 +968,9 @@ export default function MealPlannerApp() {
                 <div style={{ fontSize: 12.5, color: COLORS.textMuted, marginTop: 2 }}>
                   {checkedCount} of {totalGroceryItems} checked off
                 </div>
+              )}
+              {tab === "bystore" && (
+                <div style={{ fontSize: 12.5, color: COLORS.textMuted, marginTop: 2 }}>Grouped by where you're buying each item</div>
               )}
             </div>
             {tab === "week" && (
@@ -757,6 +990,7 @@ export default function MealPlannerApp() {
                 Regenerate plan
               </button>
             )}
+            {tab !== "week" && <InfoBubble text="Weekly vegetarian meal planner with baby meals and a smart grocery list." />}
           </div>
         </div>
 
@@ -784,65 +1018,35 @@ export default function MealPlannerApp() {
 
           {plan && tab === "grocery" && (
             <>
-              <GroceryGroup title="Vegetables" items={groceries.vegetables} checked={checkedItems} onToggle={toggleGroceryItem} />
-              <GroceryGroup title="Dairy" items={groceries.dairy} checked={checkedItems} onToggle={toggleGroceryItem} />
-              <GroceryGroup title="Pantry & grains" items={groceries.pantry} checked={checkedItems} onToggle={toggleGroceryItem} />
+              <GroceryGroup
+                title="Vegetables"
+                items={groceries.vegetables}
+                checked={checkedItems}
+                onToggle={toggleGroceryItem}
+                storeAssignments={storeAssignments}
+                onAssignStore={assignStore}
+              />
+              <GroceryGroup
+                title="Dairy"
+                items={groceries.dairy}
+                checked={checkedItems}
+                onToggle={toggleGroceryItem}
+                storeAssignments={storeAssignments}
+                onAssignStore={assignStore}
+              />
+              <GroceryGroup
+                title="Pantry & grains"
+                items={groceries.pantry}
+                checked={checkedItems}
+                onToggle={toggleGroceryItem}
+                storeAssignments={storeAssignments}
+                onAssignStore={assignStore}
+              />
             </>
           )}
 
-          {tab === "settings" && (
-            <div>
-              <div style={{ background: COLORS.cardBg, border: `0.5px solid ${COLORS.border}`, borderRadius: 12, padding: 16, marginBottom: 12 }}>
-                <div style={{ fontWeight: 700, color: COLORS.primary, marginBottom: 10, fontSize: 14 }}>Household size</div>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                  <div style={{ fontSize: 13, color: COLORS.textMuted, lineHeight: 1.5, maxWidth: 200 }}>
-                    Adults eating from this plan.
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                    <button
-                      onClick={() => changeHouseholdSize(-1)}
-                      aria-label="Decrease household size"
-                      style={{
-                        width: 32, height: 32, borderRadius: 8, border: `0.5px solid ${COLORS.border}`,
-                        background: "transparent", color: COLORS.primary, fontSize: 18, fontWeight: 700, cursor: "pointer",
-                      }}
-                    >
-                      −
-                    </button>
-                    <span style={{ fontSize: 18, fontWeight: 700, color: COLORS.text, minWidth: 20, textAlign: "center" }}>
-                      {householdSize}
-                    </span>
-                    <button
-                      onClick={() => changeHouseholdSize(1)}
-                      aria-label="Increase household size"
-                      style={{
-                        width: 32, height: 32, borderRadius: 8, border: `0.5px solid ${COLORS.border}`,
-                        background: "transparent", color: COLORS.primary, fontSize: 18, fontWeight: 700, cursor: "pointer",
-                      }}
-                    >
-                      +
-                    </button>
-                  </div>
-                </div>
-                <div style={{ fontSize: 12, color: COLORS.textMuted, marginTop: 10, lineHeight: 1.5 }}>
-                  Plus 1 baby (11 months) — soft, lightly salted meals · one adult skips yogurt
-                </div>
-              </div>
-              <div style={{ background: COLORS.cardBg, border: `0.5px solid ${COLORS.border}`, borderRadius: 12, padding: 16, marginBottom: 12 }}>
-                <div style={{ fontWeight: 700, color: COLORS.primary, marginBottom: 6, fontSize: 14 }}>Meal mix</div>
-                <div style={{ fontSize: 13, color: COLORS.textMuted, lineHeight: 1.6 }}>
-                  Roughly 80% Indian vegetarian, 20% continental · idli/dosa batter featured 3-4 dinners a week · no eggs, no
-                  mushroom · cook time under 60 minutes
-                </div>
-              </div>
-              <div style={{ background: COLORS.cardBg, border: `0.5px solid ${COLORS.border}`, borderRadius: 12, padding: 16 }}>
-                <div style={{ fontWeight: 700, color: COLORS.primary, marginBottom: 6, fontSize: 14 }}>About this week's plan</div>
-                <div style={{ fontSize: 13, color: COLORS.textMuted, lineHeight: 1.6 }}>
-                  Open this app on Friday mornings to review and regenerate the week ahead. Evening cooking covers that night's
-                  dinner plus the next day's breakfast and lunch.
-                </div>
-              </div>
-            </div>
+          {plan && tab === "bystore" && (
+            <ByStoreView allItems={allGroceryItems} storeAssignments={storeAssignments} />
           )}
         </div>
 
@@ -882,7 +1086,7 @@ export default function MealPlannerApp() {
           {[
             { id: "week", label: "This week" },
             { id: "grocery", label: "Grocery list" },
-            { id: "settings", label: "Settings" },
+            { id: "bystore", label: "By store" },
           ].map((t) => (
             <button
               key={t.id}
