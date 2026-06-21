@@ -43,6 +43,8 @@ const STORES = [
   { id: "indian_store", label: "Indian store" },
 ];
 
+const ALREADY_HAVE = { id: "already_have", label: "Already at home" };
+
 // Pantry / dairy items that recur — kept separate from rotation since
 // they're restocked rather than "used up" the way produce is.
 const PANTRY_STAPLES = [
@@ -641,9 +643,19 @@ function InfoBubble({ text }) {
   );
 }
 
-function StorePickerTag({ itemId, assignedStoreId, onAssign }) {
+function StorePickerTag({ itemId, assignedStoreId, onAssign, autoOpen, onAutoOpenHandled }) {
   const [open, setOpen] = useState(false);
-  const assignedStore = STORES.find((s) => s.id === assignedStoreId);
+  const assignedStore = STORES.find((s) => s.id === assignedStoreId) || (assignedStoreId === ALREADY_HAVE.id ? ALREADY_HAVE : null);
+  const allOptions = [...STORES, ALREADY_HAVE];
+
+  useEffect(() => {
+    if (autoOpen) setOpen(true);
+  }, [autoOpen]);
+
+  function closePopup() {
+    setOpen(false);
+    if (autoOpen) onAutoOpenHandled(itemId);
+  }
 
   return (
     <div style={{ position: "relative", flexShrink: 0 }}>
@@ -671,7 +683,7 @@ function StorePickerTag({ itemId, assignedStoreId, onAssign }) {
           <div
             onClick={(e) => {
               e.stopPropagation();
-              setOpen(false);
+              closePopup();
             }}
             style={{ position: "fixed", inset: 0, zIndex: 30 }}
           />
@@ -685,16 +697,29 @@ function StorePickerTag({ itemId, assignedStoreId, onAssign }) {
               borderRadius: 10,
               overflow: "hidden",
               zIndex: 31,
-              minWidth: 140,
+              minWidth: 150,
             }}
           >
-            {STORES.map((store) => (
+            {autoOpen && (
+              <div
+                style={{
+                  padding: "8px 12px",
+                  fontSize: 11,
+                  color: COLORS.textMuted,
+                  borderBottom: `0.5px solid ${COLORS.border}`,
+                  lineHeight: 1.4,
+                }}
+              >
+                Where's this from?
+              </div>
+            )}
+            {allOptions.map((store) => (
               <button
                 key={store.id}
                 onClick={(e) => {
                   e.stopPropagation();
                   onAssign(itemId, store.id === assignedStoreId ? null : store.id);
-                  setOpen(false);
+                  closePopup();
                 }}
                 style={{
                   width: "100%",
@@ -705,6 +730,7 @@ function StorePickerTag({ itemId, assignedStoreId, onAssign }) {
                   color: store.id === assignedStoreId ? COLORS.primary : COLORS.text,
                   background: store.id === assignedStoreId ? "#EEF3EF" : "transparent",
                   border: "none",
+                  borderTop: store.id === ALREADY_HAVE.id ? `0.5px solid ${COLORS.border}` : "none",
                   cursor: "pointer",
                 }}
               >
@@ -718,7 +744,7 @@ function StorePickerTag({ itemId, assignedStoreId, onAssign }) {
   );
 }
 
-function GroceryGroup({ title, items, checked, onToggle, storeAssignments, onAssignStore, subtitle = null }) {
+function GroceryGroup({ title, items, checked, onToggle, storeAssignments, onAssignStore, promptForStoreId, onAutoOpenHandled, subtitle = null }) {
   if (!items.length) return null;
   return (
     <div style={{ marginBottom: 18 }}>
@@ -741,9 +767,10 @@ function GroceryGroup({ title, items, checked, onToggle, storeAssignments, onAss
                 width: "100%",
                 display: "flex",
                 alignItems: "center",
-                justifyContent: "space-between",
+                gap: 8,
                 padding: "12px 14px",
                 borderTop: i === 0 ? "none" : `0.5px solid ${COLORS.border}`,
+                boxSizing: "border-box",
               }}
             >
               <button
@@ -756,8 +783,9 @@ function GroceryGroup({ title, items, checked, onToggle, storeAssignments, onAss
                   cursor: "pointer",
                   textAlign: "left",
                   padding: 0,
-                  flex: 1,
+                  flex: "1 1 auto",
                   minWidth: 0,
+                  overflow: "hidden",
                 }}
               >
                 <span
@@ -789,11 +817,13 @@ function GroceryGroup({ title, items, checked, onToggle, storeAssignments, onAss
                   {item.name}
                 </span>
               </button>
-              <div style={{ marginLeft: 8 }}>
+              <div style={{ flexShrink: 0 }}>
                 <StorePickerTag
                   itemId={item.id}
                   assignedStoreId={storeAssignments[item.id]}
                   onAssign={onAssignStore}
+                  autoOpen={promptForStoreId === item.id}
+                  onAutoOpenHandled={onAutoOpenHandled}
                 />
               </div>
             </div>
@@ -811,7 +841,7 @@ function GroceryGroup({ title, items, checked, onToggle, storeAssignments, onAss
 --------------------------------------------------------------------- */
 
 function ByStoreView({ allItems, storeAssignments }) {
-  const groups = { walmart: [], sams_club: [], indian_store: [], unassigned: [] };
+  const groups = { walmart: [], sams_club: [], indian_store: [], already_have: [], unassigned: [] };
 
   allItems.forEach((item) => {
     const storeId = storeAssignments[item.id];
@@ -826,10 +856,11 @@ function ByStoreView({ allItems, storeAssignments }) {
     { id: "walmart", label: "Walmart" },
     { id: "sams_club", label: "Sam's Club" },
     { id: "indian_store", label: "Indian store" },
+    { id: "already_have", label: "Already at home" },
     { id: "unassigned", label: "Unassigned" },
   ];
 
-  const anyAssigned = sections.slice(0, 3).some((s) => groups[s.id].length > 0);
+  const anyAssigned = sections.slice(0, 4).some((s) => groups[s.id].length > 0);
 
   if (!anyAssigned && groups.unassigned.length === allItems.length) {
     return (
@@ -882,6 +913,7 @@ export default function MealPlannerApp() {
   const [regeneratingDay, setRegeneratingDay] = useState(null);
   const [toast, setToast] = useState(null);
   const [storeAssignments, setStoreAssignments] = useState(() => safeGet("storeAssignments", {}));
+  const [promptForStoreId, setPromptForStoreId] = useState(null);
 
   useEffect(() => {
     setPlan(generateMealPlan());
@@ -907,6 +939,7 @@ export default function MealPlannerApp() {
       }
       return next;
     });
+    setPromptForStoreId((current) => (current === itemId ? null : current));
   }
 
   const groceries = plan ? buildGroceryList(plan) : { vegetables: [], dairy: [], pantry: [] };
@@ -935,7 +968,13 @@ export default function MealPlannerApp() {
   }
 
   function toggleGroceryItem(id) {
-    setCheckedItems((c) => ({ ...c, [id]: !c[id] }));
+    setCheckedItems((c) => {
+      const nowChecked = !c[id];
+      if (nowChecked && !storeAssignments[id]) {
+        setPromptForStoreId(id);
+      }
+      return { ...c, [id]: nowChecked };
+    });
   }
 
   const totalGroceryItems = groceries.vegetables.length + groceries.dairy.length + groceries.pantry.length;
@@ -1025,6 +1064,8 @@ export default function MealPlannerApp() {
                 onToggle={toggleGroceryItem}
                 storeAssignments={storeAssignments}
                 onAssignStore={assignStore}
+                promptForStoreId={promptForStoreId}
+                onAutoOpenHandled={() => setPromptForStoreId(null)}
               />
               <GroceryGroup
                 title="Dairy"
@@ -1033,6 +1074,8 @@ export default function MealPlannerApp() {
                 onToggle={toggleGroceryItem}
                 storeAssignments={storeAssignments}
                 onAssignStore={assignStore}
+                promptForStoreId={promptForStoreId}
+                onAutoOpenHandled={() => setPromptForStoreId(null)}
               />
               <GroceryGroup
                 title="Pantry & grains"
@@ -1041,6 +1084,8 @@ export default function MealPlannerApp() {
                 onToggle={toggleGroceryItem}
                 storeAssignments={storeAssignments}
                 onAssignStore={assignStore}
+                promptForStoreId={promptForStoreId}
+                onAutoOpenHandled={() => setPromptForStoreId(null)}
               />
             </>
           )}
