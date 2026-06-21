@@ -840,7 +840,7 @@ function GroceryGroup({ title, items, checked, onToggle, storeAssignments, onAss
    Grocery list tab; nothing here is pre-set.
 --------------------------------------------------------------------- */
 
-function ByStoreView({ allItems, storeAssignments }) {
+function ByStoreView({ allItems, storeAssignments, boughtItems, onToggleBought }) {
   const groups = { walmart: [], sams_club: [], indian_store: [], already_have: [], unassigned: [] };
 
   allItems.forEach((item) => {
@@ -881,19 +881,52 @@ function ByStoreView({ allItems, storeAssignments }) {
               {section.label}
             </div>
             <div style={{ background: COLORS.cardBg, border: `0.5px solid ${COLORS.border}`, borderRadius: 12, overflow: "hidden" }}>
-              {items.map((item, i) => (
-                <div
-                  key={item.id}
-                  style={{
-                    padding: "12px 14px",
-                    fontSize: 14,
-                    color: COLORS.text,
-                    borderTop: i === 0 ? "none" : `0.5px solid ${COLORS.border}`,
-                  }}
-                >
-                  {item.name}
-                </div>
-              ))}
+              {items.map((item, i) => {
+                const isBought = !!boughtItems[item.id];
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => onToggleBought(item.id)}
+                    style={{
+                      width: "100%",
+                      display: "flex",
+                      alignItems: "center",
+                      padding: "12px 14px",
+                      background: "transparent",
+                      border: "none",
+                      borderTop: i === 0 ? "none" : `0.5px solid ${COLORS.border}`,
+                      cursor: "pointer",
+                      textAlign: "left",
+                    }}
+                  >
+                    <span
+                      style={{
+                        width: 18,
+                        height: 18,
+                        borderRadius: 5,
+                        border: `1.5px solid ${isBought ? COLORS.primary : COLORS.textMuted}`,
+                        background: isBought ? COLORS.primary : "transparent",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        flexShrink: 0,
+                      }}
+                    >
+                      {isBought && <span style={{ color: "white", fontSize: 11, lineHeight: 1 }}>✓</span>}
+                    </span>
+                    <span
+                      style={{
+                        fontSize: 14,
+                        marginLeft: 10,
+                        color: isBought ? COLORS.textMuted : COLORS.text,
+                        textDecoration: isBought ? "line-through" : "none",
+                      }}
+                    >
+                      {item.name}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </div>
         );
@@ -914,6 +947,7 @@ export default function MealPlannerApp() {
   const [toast, setToast] = useState(null);
   const [storeAssignments, setStoreAssignments] = useState(() => safeGet("storeAssignments", {}));
   const [promptForStoreId, setPromptForStoreId] = useState(null);
+  const [boughtItems, setBoughtItems] = useState(() => safeGet("boughtItems", {}));
 
   useEffect(() => {
     setPlan(generateMealPlan());
@@ -928,6 +962,14 @@ export default function MealPlannerApp() {
   useEffect(() => {
     safeSet("storeAssignments", storeAssignments);
   }, [storeAssignments]);
+
+  useEffect(() => {
+    safeSet("boughtItems", boughtItems);
+  }, [boughtItems]);
+
+  function toggleBought(itemId) {
+    setBoughtItems((prev) => ({ ...prev, [itemId]: !prev[itemId] }));
+  }
 
   function assignStore(itemId, storeId) {
     setStoreAssignments((prev) => {
@@ -979,6 +1021,8 @@ export default function MealPlannerApp() {
 
   const totalGroceryItems = groceries.vegetables.length + groceries.dairy.length + groceries.pantry.length;
   const checkedCount = Object.values(checkedItems).filter(Boolean).length;
+  const assignedCount = allGroceryItems.filter((item) => storeAssignments[item.id]).length;
+  const boughtCount = allGroceryItems.filter((item) => boughtItems[item.id]).length;
 
   return (
     <div
@@ -1009,7 +1053,9 @@ export default function MealPlannerApp() {
                 </div>
               )}
               {tab === "bystore" && (
-                <div style={{ fontSize: 12.5, color: COLORS.textMuted, marginTop: 2 }}>Grouped by where you're buying each item</div>
+                <div style={{ fontSize: 12.5, color: COLORS.textMuted, marginTop: 2 }}>
+                  {assignedCount > 0 ? `${boughtCount} of ${assignedCount} bought` : "Grouped by where you're buying each item"}
+                </div>
               )}
             </div>
             {tab === "week" && (
@@ -1091,7 +1137,12 @@ export default function MealPlannerApp() {
           )}
 
           {plan && tab === "bystore" && (
-            <ByStoreView allItems={allGroceryItems} storeAssignments={storeAssignments} />
+            <ByStoreView
+              allItems={allGroceryItems}
+              storeAssignments={storeAssignments}
+              boughtItems={boughtItems}
+              onToggleBought={toggleBought}
+            />
           )}
         </div>
 
