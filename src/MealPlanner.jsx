@@ -37,6 +37,8 @@ const VEGETABLES = [
 
 const vegById = Object.fromEntries(VEGETABLES.map((v) => [v.id, v]));
 
+const DEFAULT_HOUSEHOLD_SIZE = 3; // shown in Settings; cosmetic only, doesn't affect the grocery list
+
 // Pantry / dairy items that recur — kept separate from rotation since
 // they're restocked rather than "used up" the way produce is.
 const PANTRY_STAPLES = [
@@ -199,6 +201,26 @@ function babyNoteFor(dish) {
 }
 
 const DAY_NAMES = ["Saturday", "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
+
+// Safe localStorage wrapper — falls back to in-memory only if storage
+// is unavailable (e.g. private browsing, or this code running inside
+// certain sandboxed previews). Never throws.
+const memoryStore = {};
+function safeGet(key, fallback) {
+  try {
+    const raw = window.localStorage.getItem(key);
+    return raw !== null ? JSON.parse(raw) : fallback;
+  } catch {
+    return key in memoryStore ? memoryStore[key] : fallback;
+  }
+}
+function safeSet(key, value) {
+  try {
+    window.localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    memoryStore[key] = value;
+  }
+}
 
 /* ---------------------------------------------------------------------
    GENERATOR
@@ -374,38 +396,36 @@ function regenerateSingleDay(plan, dayId) {
 
 /* ---------------------------------------------------------------------
    GROCERY LIST BUILDER
+   Plain checklist of ingredients used across the week's plan — no
+   counts or quantities shown, since exact amounts vary by household
+   and pantry stock more than a generic number could capture.
 --------------------------------------------------------------------- */
 
 function buildGroceryList(plan) {
   if (!plan) return { vegetables: [], dairy: [], pantry: [] };
-  const vegMap = {};
-  const dairyMap = {};
-  const pantryMap = {};
+
+  const vegSet = new Set();
+  const dairySet = new Set();
+  const pantrySet = new Set();
 
   plan.days.forEach((day) => {
     ["breakfast", "lunch", "dinner"].forEach((slot) => {
       const dish = day.meals[slot];
-      dish.veg.forEach((id) => {
-        vegMap[id] = (vegMap[id] || 0) + 1;
-      });
-      dish.dairy.forEach((id) => {
-        dairyMap[id] = (dairyMap[id] || 0) + 1;
-      });
-      dish.pantry.forEach((id) => {
-        pantryMap[id] = (pantryMap[id] || 0) + 1;
-      });
+      dish.veg.forEach((id) => vegSet.add(id));
+      dish.dairy.forEach((id) => dairySet.add(id));
+      dish.pantry.forEach((id) => pantrySet.add(id));
     });
   });
 
-  const toItems = (map, lookup) =>
-    Object.entries(map)
-      .map(([id, count]) => ({ id, name: lookup[id]?.name || id, count }))
-      .sort((a, b) => b.count - a.count);
+  const toItems = (set, lookup) =>
+    Array.from(set)
+      .map((id) => ({ id, name: lookup[id]?.name || id }))
+      .sort((a, b) => a.name.localeCompare(b.name));
 
   return {
-    vegetables: toItems(vegMap, vegById),
-    dairy: toItems(dairyMap, Object.fromEntries(DAIRY.map((d) => [d.id, d]))),
-    pantry: toItems(pantryMap, Object.fromEntries(PANTRY_STAPLES.map((p) => [p.id, p]))),
+    vegetables: toItems(vegSet, vegById),
+    dairy: toItems(dairySet, Object.fromEntries(DAIRY.map((d) => [d.id, d]))),
+    pantry: toItems(pantrySet, Object.fromEntries(PANTRY_STAPLES.map((p) => [p.id, p]))),
   };
 }
 
@@ -565,13 +585,19 @@ function DayCard({ day, isToday, onToggle, onRegenerate, regenerating }) {
   );
 }
 
-function GroceryGroup({ title, items, checked, onToggle }) {
+function GroceryGroup({ title, items, checked, onToggle, subtitle = null }) {
   if (!items.length) return null;
   return (
     <div style={{ marginBottom: 18 }}>
-      <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.amber, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 8 }}>
+      <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.amber, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 2 }}>
         {title}
       </div>
+      {subtitle && (
+        <div style={{ fontSize: 11, color: COLORS.textMuted, marginBottom: 8, fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>
+          {subtitle}
+        </div>
+      )}
+      {!subtitle && <div style={{ marginBottom: 8 }} />}
       <div style={{ background: COLORS.cardBg, border: `0.5px solid ${COLORS.border}`, borderRadius: 12, overflow: "hidden" }}>
         {items.map((item, i) => {
           const isChecked = !!checked[item.id];
@@ -583,7 +609,6 @@ function GroceryGroup({ title, items, checked, onToggle }) {
                 width: "100%",
                 display: "flex",
                 alignItems: "center",
-                justifyContent: "space-between",
                 padding: "12px 14px",
                 background: "transparent",
                 border: "none",
@@ -592,33 +617,31 @@ function GroceryGroup({ title, items, checked, onToggle }) {
                 textAlign: "left",
               }}
             >
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <span
-                  style={{
-                    width: 18,
-                    height: 18,
-                    borderRadius: 5,
-                    border: `1.5px solid ${isChecked ? COLORS.primary : COLORS.textMuted}`,
-                    background: isChecked ? COLORS.primary : "transparent",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    flexShrink: 0,
-                  }}
-                >
-                  {isChecked && <span style={{ color: "white", fontSize: 11, lineHeight: 1 }}>✓</span>}
-                </span>
-                <span
-                  style={{
-                    fontSize: 14,
-                    color: isChecked ? COLORS.textMuted : COLORS.text,
-                    textDecoration: isChecked ? "line-through" : "none",
-                  }}
-                >
-                  {item.name}
-                </span>
-              </div>
-              <span style={{ fontSize: 11, color: COLORS.textMuted }}>×{item.count}</span>
+              <span
+                style={{
+                  width: 18,
+                  height: 18,
+                  borderRadius: 5,
+                  border: `1.5px solid ${isChecked ? COLORS.primary : COLORS.textMuted}`,
+                  background: isChecked ? COLORS.primary : "transparent",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0,
+                }}
+              >
+                {isChecked && <span style={{ color: "white", fontSize: 11, lineHeight: 1 }}>✓</span>}
+              </span>
+              <span
+                style={{
+                  fontSize: 14,
+                  marginLeft: 10,
+                  color: isChecked ? COLORS.textMuted : COLORS.text,
+                  textDecoration: isChecked ? "line-through" : "none",
+                }}
+              >
+                {item.name}
+              </span>
             </button>
           );
         })}
@@ -637,6 +660,7 @@ export default function MealPlannerApp() {
   const [checkedItems, setCheckedItems] = useState({});
   const [regeneratingDay, setRegeneratingDay] = useState(null);
   const [toast, setToast] = useState(null);
+  const [householdSize, setHouseholdSize] = useState(() => safeGet("householdSize", DEFAULT_HOUSEHOLD_SIZE));
 
   useEffect(() => {
     setPlan(generateMealPlan());
@@ -647,6 +671,14 @@ export default function MealPlannerApp() {
     const t = setTimeout(() => setToast(null), 1800);
     return () => clearTimeout(t);
   }, [toast]);
+
+  useEffect(() => {
+    safeSet("householdSize", householdSize);
+  }, [householdSize]);
+
+  function changeHouseholdSize(delta) {
+    setHouseholdSize((n) => Math.min(10, Math.max(1, n + delta)));
+  }
 
   const groceries = plan ? buildGroceryList(plan) : { vegetables: [], dairy: [], pantry: [] };
 
@@ -761,9 +793,39 @@ export default function MealPlannerApp() {
           {tab === "settings" && (
             <div>
               <div style={{ background: COLORS.cardBg, border: `0.5px solid ${COLORS.border}`, borderRadius: 12, padding: 16, marginBottom: 12 }}>
-                <div style={{ fontWeight: 700, color: COLORS.primary, marginBottom: 6, fontSize: 14 }}>Household</div>
-                <div style={{ fontSize: 13, color: COLORS.textMuted, lineHeight: 1.6 }}>
-                  3 adults, vegetarian · 1 baby (11 months), soft and lightly salted meals · one adult skips yogurt
+                <div style={{ fontWeight: 700, color: COLORS.primary, marginBottom: 10, fontSize: 14 }}>Household size</div>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <div style={{ fontSize: 13, color: COLORS.textMuted, lineHeight: 1.5, maxWidth: 200 }}>
+                    Adults eating from this plan.
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <button
+                      onClick={() => changeHouseholdSize(-1)}
+                      aria-label="Decrease household size"
+                      style={{
+                        width: 32, height: 32, borderRadius: 8, border: `0.5px solid ${COLORS.border}`,
+                        background: "transparent", color: COLORS.primary, fontSize: 18, fontWeight: 700, cursor: "pointer",
+                      }}
+                    >
+                      −
+                    </button>
+                    <span style={{ fontSize: 18, fontWeight: 700, color: COLORS.text, minWidth: 20, textAlign: "center" }}>
+                      {householdSize}
+                    </span>
+                    <button
+                      onClick={() => changeHouseholdSize(1)}
+                      aria-label="Increase household size"
+                      style={{
+                        width: 32, height: 32, borderRadius: 8, border: `0.5px solid ${COLORS.border}`,
+                        background: "transparent", color: COLORS.primary, fontSize: 18, fontWeight: 700, cursor: "pointer",
+                      }}
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+                <div style={{ fontSize: 12, color: COLORS.textMuted, marginTop: 10, lineHeight: 1.5 }}>
+                  Plus 1 baby (11 months) — soft, lightly salted meals · one adult skips yogurt
                 </div>
               </div>
               <div style={{ background: COLORS.cardBg, border: `0.5px solid ${COLORS.border}`, borderRadius: 12, padding: 16, marginBottom: 12 }}>
